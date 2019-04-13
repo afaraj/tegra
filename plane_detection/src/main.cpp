@@ -18,6 +18,7 @@
 //
 ///////////////////////////////////////////////////////////////////////////
 
+
 /*************************************************************************
  ** This sample shows how to find the floor plane. It's displayed as a mesh on top of      **
  * the left image using OpenGL. The detection can be triggered with the Space Bar key   **
@@ -27,13 +28,13 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
+#include <time.h>
+#include <string>
+#include <sstream>
 
 // OpenGL includes
 #include <GL/glew.h>
 #include "GL/freeglut.h"
-
-// Eigen includes
-#include <eigen3/Eigen/Dense>
 
 // ZED includes
 #include <sl_zed/Camera.hpp>
@@ -42,6 +43,8 @@
 #include "GLObject.hpp"
 #include "utils.hpp"
 #include "cuda_gl_interop.h"
+#include <Eigen/Dense>
+
 
 using namespace sl;
 
@@ -107,8 +110,8 @@ int main(int argc, char** argv) {
     if (argc > 1) parameters.svo_input_filename = argv[1];
 
     parameters.depth_mode = DEPTH_MODE_QUALITY;
-    parameters.camera_resolution = RESOLUTION_HD720;
     parameters.coordinate_units = UNIT_METER;
+    //parameters.camera_resolution = RESOLUTION_HD1080;
     parameters.coordinate_system = COORDINATE_SYSTEM_RIGHT_HANDED_Y_UP; // OpenGL coordinates system
 
     // Open the ZED
@@ -118,18 +121,7 @@ int main(int argc, char** argv) {
         zed.close();
         return -1;
     }
-
-    // Set positional tracking parameters
-	TrackingParameters tracking_parameters;
-	tracking_parameters.initial_world_transform = sl::Transform::identity();
-	tracking_parameters.enable_spatial_memory = true;
-
-	err = zed.enableTracking(tracking_parameters);
-
-	if (zed.grab() == SUCCESS){
-
-	}
-
+    zed.setCameraFPS(30);
     wWnd = (int) zed.getResolution().width;
     hWnd = (int) zed.getResolution().height;
 
@@ -184,6 +176,8 @@ void close() {
 Update the mesh and draw image and wireframe using OpenGL
  **/
 void run() {
+    std::cout << "FPS: " << zed.getCameraFPS() << "Resolution: " << zed.getResolution().area() << std::endl;
+    
     if (zed.grab(runtime_parameters) == SUCCESS) {
         // Retrieve image in GPU memory
         zed.retrieveImage(left_image, VIEW_LEFT, MEM_GPU);
@@ -205,8 +199,32 @@ void run() {
             if (plane_detection == PLANE_DETECTION::HIT) {
                 sl::ERROR_CODE plane_status = zed.findPlaneAtHit(hit_coord, plane);
                 if (plane_status == sl::SUCCESS) {
+                    std::cout << "Normal: " << plane.getNormal() << std::endl;
                     Mesh mesh = plane.extractMesh();
                     std::vector<int> boundaries = mesh.getBoundaries();
+                    std::vector<sl::float3> normals;
+                    for(int i=0; i < boundaries.size()-2; i++){
+                        /*
+                        sl::float3 a = mesh.vertices[boundaries[i]];
+                        sl::float3 b = mesh.vertices[boundaries[i+1]];
+                        sl::float3 c = mesh.vertices[boundaries[i+2]];
+                        sl::float3 norm = sl::float3::cross(b-a, c-a);
+                        normals.push_back(norm);
+                        */
+                        //boundary_values.push_back(point);
+                        std::cout << mesh.vertices[boundaries[i]];
+                    }
+
+                    char save = 'n';
+                    std::cout << "Save this mesh?(y/n) ";
+                    std::cin >> save;
+                    if (save == 'y'){
+                        time_t t = time(0);   // get time now
+                        std::stringstream ss;
+                        ss << t;
+                        std::string obj_filename = "/home/ahmed/data/obj/" + ss.str() + ".obj";
+                        mesh.save(obj_filename.c_str());
+                    }
                     mesh_object.updateMesh(mesh.vertices, mesh.triangles, boundaries);
                     mesh_object.type = plane.type;
                 }
